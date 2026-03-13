@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CASVEL – Reportes Financieros</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#2563a8;--blt:#4F81BD;--bbg:#dce6f1;
+  --dark:#1a1f2e;--mid:#4a5568;--light:#f0f4f8;
+  --white:#fff;--red:#c0392b;--green:#1a7a44;--border:#d1dde8;--r:8px;
+  --ff:'DM Sans',system-ui,sans-serif;
+  --fh:'Playfair Display',Georgia,serif;
+  --fm:'DM Mono',monospace;
+  --gold:#b8860b;--gold-lt:#fdf3d0;
+  --teal:#0e7490;--teal-lt:#e0f2f7;
+  --purple:#6d28d9;--purple-lt:#ede9fe;
+}
+body{font-family:var(--ff);background:var(--light);color:var(--dark);font-size:14px}
+
+/* ── SIDEBAR ── */
+.sb{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--dark);
+  display:flex;flex-direction:column;z-index:100;box-shadow:4px 0 20px rgba(0,0,0,.2)}
+.sb-logo{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;gap:10px}
+.sb-logo img{width:44px;border-radius:4px}
+.sb-brand{color:#fff;font-family:var(--fh);font-size:16px;line-height:1.2}
+.sb-sub{color:rgba(255,255,255,.4);font-size:10px;margin-top:2px}
+.nav-sec{padding:16px 0 4px}
+.nav-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.3);padding:0 18px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;
+  color:rgba(255,255,255,.6);font-size:13px;font-weight:500;
+  border-left:3px solid transparent;text-decoration:none;transition:all .15s}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.on{background:rgba(79,129,189,.18);color:#fff;border-left-color:var(--blt)}
+.nav-item .ic{font-size:16px;width:20px;text-align:center}
+.sb-foot{margin-top:auto;padding:14px 18px;font-size:10px;
+  color:rgba(255,255,255,.25);border-top:1px solid rgba(255,255,255,.06)}
+.sb-foot a{color:rgba(255,255,255,.3);text-decoration:none}
+
+/* ── MAIN ── */
+.main{margin-left:220px;min-height:100vh}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:14px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+.topbar-title{font-family:var(--fh);font-size:20px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.content{padding:28px 32px 64px}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);padding:4px;width:fit-content;margin-bottom:28px}
+.tab{padding:8px 20px;border-radius:6px;border:none;font-family:var(--ff);font-size:13px;
+  font-weight:600;cursor:pointer;color:var(--mid);background:transparent;transition:all .15s}
+.tab.on{background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(37,99,168,.3)}
+
+/* ── VIEWS ── */
+.view{display:none}.view.on{display:block}
+
+/* ── SUMMARY CARDS ── */
+.summary-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+.scard{background:var(--white);border-radius:var(--r);padding:22px 24px;
+  border:1px solid var(--border);position:relative;overflow:hidden}
+.scard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.scard.c-blue::before{background:var(--blue)}
+.scard.c-teal::before{background:var(--teal)}
+.scard.c-green::before{background:var(--green)}
+.scard.c-gold::before{background:var(--gold)}
+.scard.c-purple::before{background:var(--purple)}
+.scard-icon{font-size:24px;margin-bottom:10px;display:block}
+.scard-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--mid);margin-bottom:6px}
+.scard-val{font-family:var(--fm);font-size:26px;font-weight:500;color:var(--dark);
+  letter-spacing:-.5px;line-height:1}
+.scard-sub{font-size:11px;color:var(--mid);margin-top:6px}
+.scard-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;
+  padding:2px 8px;border-radius:10px;margin-top:8px}
+.badge-green{background:#dcfce7;color:#15803d}
+.badge-blue{background:#dbeafe;color:#1d4ed8}
+.badge-gold{background:var(--gold-lt);color:var(--gold)}
+
+/* ── SECTION HEADER ── */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.sec-title{font-family:var(--fh);font-size:17px;display:flex;align-items:center;gap:8px}
+.sec-title span{font-size:13px;font-weight:500;font-family:var(--ff);color:var(--mid)}
+.year-nav{display:flex;align-items:center;gap:8px}
+.ynav-btn{width:30px;height:30px;border-radius:6px;border:1.5px solid var(--border);
+  background:var(--white);cursor:pointer;font-size:16px;display:flex;align-items:center;
+  justify-content:center;transition:all .15s;color:var(--mid)}
+.ynav-btn:hover{border-color:var(--blt);color:var(--blue)}
+.ynav-year{font-family:var(--fm);font-size:15px;font-weight:500;min-width:44px;text-align:center}
+
+/* ── MONTH TABLE ── */
+.month-table-wrap{background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;margin-bottom:28px}
+.month-table{width:100%;border-collapse:collapse}
+.month-table thead tr{background:var(--dark)}
+.month-table thead th{padding:11px 16px;text-align:left;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.7)}
+.month-table thead th.num{text-align:right}
+.month-table tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+.month-table tbody tr:last-child{border-bottom:none}
+.month-table tbody tr:hover{background:#f7fafd}
+.month-table tbody tr.cur-month{background:#fffbeb}
+.month-table td{padding:12px 16px;font-size:13px;vertical-align:middle}
+.month-table td.num{text-align:right;font-family:var(--fm);font-size:12px}
+.month-table td.num-main{text-align:right;font-family:var(--fm);font-size:13px;
+  font-weight:500;color:var(--dark)}
+.month-table td.contracts{text-align:center}
+.month-badge{display:inline-flex;align-items:center;font-size:11px;font-weight:700;
+  padding:3px 8px;border-radius:10px}
+.mb-past{background:var(--bbg);color:var(--blue)}
+.mb-cur{background:#fef9c3;color:#854d0e}
+.mb-future{background:#dcfce7;color:#15803d}
+.mb-empty{background:var(--light);color:var(--mid)}
+.month-name{font-weight:600}
+.bar-wrap{display:flex;align-items:center;gap:8px}
+.bar-bg{flex:1;height:6px;background:var(--light);border-radius:3px;overflow:hidden;min-width:60px}
+.bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.bar-blue{background:var(--blue)}
+.bar-teal{background:var(--teal)}
+
+/* ── CHART ── */
+.chart-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);
+  padding:24px;margin-bottom:28px}
+.chart-title{font-size:13px;font-weight:700;color:var(--mid);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:20px}
+.chart-bars{display:flex;align-items:flex-end;gap:6px;height:140px;
+  border-bottom:1.5px solid var(--border);padding-bottom:0}
+.chart-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  justify-content:flex-end}
+.chart-bar{width:100%;border-radius:3px 3px 0 0;transition:height .5s cubic-bezier(.4,0,.2,1);
+  cursor:pointer;position:relative;min-height:2px}
+.chart-bar:hover{filter:brightness(1.1)}
+.chart-bar-lbl{font-size:9px;font-weight:600;color:var(--mid);margin-top:8px;
+  text-align:center;white-space:nowrap}
+.chart-bar-val{font-size:9px;font-family:var(--fm);color:var(--mid);
+  position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+  white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none}
+.chart-bar:hover .chart-bar-val{opacity:1}
+.cb-cur{background:var(--gold)}
+.cb-past{background:var(--blue)}
+.cb-zero{background:var(--border)}
+
+/* ── FUTURE REPORT ── */
+.future-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+.future-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);
+  padding:20px;overflow:hidden}
+.future-card-hdr{display:flex;justify-content:space-between;align-items:flex-start;
+  margin-bottom:16px}
+.future-card-title{font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--mid)}
+.future-card-icon{font-size:22px}
+.future-metrics{display:flex;flex-direction:column;gap:10px}
+.metric-row{display:flex;justify-content:space-between;align-items:center;
+  padding:10px 14px;border-radius:6px}
+.metric-row.m1{background:#dbeafe}
+.metric-row.m2{background:var(--teal-lt)}
+.metric-row.m3{background:#dcfce7}
+.metric-lbl{font-size:12px;font-weight:600;color:var(--mid)}
+.metric-val{font-family:var(--fm);font-size:16px;font-weight:500;color:var(--dark)}
+
+.future-list-wrap{background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;margin-bottom:28px}
+.future-list-hdr{padding:14px 18px;background:var(--dark);
+  display:flex;align-items:center;gap:10px}
+.future-list-hdr-title{font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;color:rgba(255,255,255,.7)}
+.future-list-hdr-count{font-size:11px;background:rgba(255,255,255,.15);
+  color:#fff;padding:2px 8px;border-radius:10px;font-weight:600}
+.future-list{width:100%;border-collapse:collapse}
+.future-list thead th{padding:9px 16px;text-align:left;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--mid);
+  background:var(--light);border-bottom:1px solid var(--border)}
+.future-list thead th.num{text-align:right}
+.future-list tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+.future-list tbody tr:last-child{border-bottom:none}
+.future-list tbody tr:hover{background:#f7fafd}
+.future-list td{padding:11px 16px;font-size:13px;vertical-align:middle}
+.future-list td.num{text-align:right;font-family:var(--fm);font-size:12px;color:var(--mid)}
+.future-list td.num-main{text-align:right;font-family:var(--fm);font-size:13px;font-weight:500}
+.days-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;
+  padding:2px 7px;border-radius:8px}
+.db-soon{background:#fef9c3;color:#854d0e}
+.db-future{background:#dcfce7;color:#15803d}
+.db-today{background:#fee2e2;color:#b91c1c}
+.db-past{background:var(--bbg);color:var(--blue)}
+
+/* ── EMPTY ── */
+.empty-state{text-align:center;padding:60px 20px;color:var(--mid)}
+.empty-state .ei{font-size:48px;margin-bottom:12px}
+
+/* ── FIREBASE STATUS ── */
+.fb-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+  padding:4px 10px;border-radius:12px}
+.fb-pill.local{background:rgba(0,0,0,.06);color:var(--mid)}
+.fb-pill.live{background:#dcfce7;color:#15803d}
+.fb-pill.live::before{content:"●";margin-right:2px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── FIREBASE CONFIG MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;
+  align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:10px;padding:28px 32px;max-width:500px;width:90%;
+  box-shadow:0 16px 60px rgba(0,0,0,.25)}
+.modal-title{font-family:var(--fh);font-size:18px;margin-bottom:6px}
+.modal-sub{font-size:13px;color:var(--mid);margin-bottom:20px}
+.fb-field{margin-bottom:14px}
+.fb-field label{display:block;font-size:12px;font-weight:600;color:var(--mid);margin-bottom:5px}
+.fb-field input{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);
+  font-family:var(--ff);font-size:13px;outline:none}
+.fb-field input:focus{border-color:var(--blt)}
+.fb-steps{font-size:12px;color:var(--mid);line-height:1.7;background:var(--light);
+  border-radius:var(--r);padding:12px 16px;margin-bottom:16px}
+.fb-steps a{color:var(--blue)}
+.fb-steps code{background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:11px}
+.modal-acts{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;
+  border-radius:var(--r);font-family:var(--ff);font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .15s}
+.btn-p{background:var(--blue);color:#fff}.btn-p:hover{background:var(--dark)}
+.btn-g{background:transparent;color:var(--mid);border:1.5px solid var(--border)}
+.btn-g:hover{border-color:var(--blt);color:var(--blue)}
+.btn-d{background:var(--red);color:#fff}.btn-d:hover{opacity:.85}
+.btn-sm{padding:5px 11px;font-size:12px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--dark);color:#acd4f5;
+  padding:10px 18px;border-radius:6px;font-size:13px;border-left:4px solid var(--blt);
+  transform:translateY(60px);opacity:0;transition:all .28s;z-index:9999;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+
+/* ── PRINT ── */
+@media print{
+  .sb,.topbar,.tabs,.ynav-btn,#fb-modal{display:none!important}
+  .main{margin-left:0!important}.content{padding:0!important}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sb">
+  <div class="sb-logo">
+    <img id="sb-logo" src="" alt="CASVEL">
+    <div><div class="sb-brand">CASVEL</div><div class="sb-sub">Reportes</div></div>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Menú</div>
+    <a class="nav-item" href="index.html"><span class="ic">📊</span> Dashboard</a>
+    <a class="nav-item" href="index.html?view=historial"><span class="ic">📋</span> Historial</a>
+    <a class="nav-item" href="index.html"><span class="ic">✏️</span> Nuevo Contrato</a>
+    <a class="nav-item on"><span class="ic">💰</span> Reportes</a>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Configuración</div>
+    <a class="nav-item" href="#" onclick="openFbModal();return false">
+      <span class="ic">☁️</span> Sincronización</a>
+  </div>
+  <div class="sb-foot">
+    <div id="fb-status-sb" class="fb-pill local" style="margin-bottom:10px;cursor:pointer"
+         onclick="openFbModal()">⬡ Solo local</div><br>
+    EVENTOS CASVEL © 2026<br>
+    <a href="mobile.html">📱 Versión móvil</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <a href="index.html" class="btn btn-g btn-sm" style="text-decoration:none">← Volver</a>
+      <div class="topbar-title">Reportes Financieros</div>
+    </div>
+    <div class="topbar-right">
+      <span id="fb-status-top" class="fb-pill local">⬡ Solo local</span>
+      <button class="btn btn-g btn-sm" onclick="window.print()">🖨 Imprimir</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab on" id="tab-mensual" onclick="showTab('mensual')">📅 Ingresos por Mes</button>
+      <button class="tab"    id="tab-futuro"  onclick="showTab('futuro')">🔮 Ingresos Futuros</button>
+    </div>
+
+    <!-- ═══════════ VIEW: MENSUAL ═══════════ -->
+    <div id="view-mensual" class="view on">
+
+      <!-- Summary cards row -->
+      <div class="summary-row" id="mensual-summary"></div>
+
+      <!-- Year navigation + chart -->
+      <div class="chart-wrap">
+        <div class="sec-hdr" style="margin-bottom:16px">
+          <div class="chart-title">Ingresos mensuales</div>
+          <div class="year-nav">
+            <button class="ynav-btn" onclick="changeYear(-1)">‹</button>
+            <div class="ynav-year" id="ynav-label">2026</div>
+            <button class="ynav-btn" onclick="changeYear(1)">›</button>
+          </div>
+        </div>
+        <div class="chart-bars" id="chart-bars"></div>
+        <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--mid)">
+          <span style="display:flex;align-items:center;gap:5px">
+            <span style="width:10px;height:10px;border-radius:2px;background:var(--blue);display:inline-block"></span>Meses anteriores
+          </span>
+          <span style="display:flex;align-items:center;gap:5px">
+            <span style="width:10px;height:10px;border-radius:2px;background:var(--gold);display:inline-block"></span>Mes actual
+          </span>
+        </div>
+      </div>
+
+      <!-- Month-by-month table -->
+      <div class="sec-hdr">
+        <div class="sec-title">Detalle por mes
+          <span id="year-title-label">2026</span>
+        </div>
+      </div>
+      <div class="month-table-wrap">
+        <table class="month-table">
+          <thead><tr>
+            <th>Mes</th>
+            <th class="num">Contratos</th>
+            <th class="num">Total bruto</th>
+            <th class="num">Sin traslado</th>
+            <th class="num" style="width:180px">Participación</th>
+          </tr></thead>
+          <tbody id="month-tbody"></tbody>
+          <tfoot id="month-tfoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════════ VIEW: FUTURO ═══════════ -->
+    <div id="view-futuro" class="view">
+
+      <!-- 3 metric cards -->
+      <div id="future-metric-cards" class="summary-row" style="grid-template-columns:repeat(3,1fr)"></div>
+
+      <!-- Two sub-panels: upcoming breakdown + per-month -->
+      <div class="future-grid">
+        <!-- Panel: desglose por rango -->
+        <div class="future-card" id="future-breakdown"></div>
+        <!-- Panel: por mes -->
+        <div class="future-card" id="future-bymonth"></div>
+      </div>
+
+      <!-- Full list of future contracts -->
+      <div class="future-list-wrap">
+        <div class="future-list-hdr">
+          <div class="future-list-hdr-title">Contratos con evento pendiente</div>
+          <div class="future-list-hdr-count" id="future-count">0</div>
+        </div>
+        <div id="future-list-container"></div>
+      </div>
+
+    </div>
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- FIREBASE CONFIG MODAL -->
+<div class="overlay" id="fb-modal">
+  <div class="modal">
+    <div class="modal-title">☁️ Sincronización Firebase</div>
+    <div class="modal-sub" id="fb-modal-sub">Conecta Firebase para compartir datos entre dispositivos.</div>
+    <div class="fb-steps">
+      1. <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → nuevo proyecto<br>
+      2. Realtime Database → Crear base de datos → <em>Modo de prueba</em><br>
+      3. Copiar URL de DB: <code>https://tu-proyecto-rtdb.firebaseio.com</code><br>
+      4. Configuración del proyecto → copiar <code>apiKey</code> y <code>projectId</code>
+    </div>
+    <div class="fb-field"><label>API Key</label>
+      <input type="text" id="fb-apikey" placeholder="AIzaSy..."></div>
+    <div class="fb-field"><label>Database URL</label>
+      <input type="text" id="fb-dburl" placeholder="https://tu-proyecto-rtdb.firebaseio.com"></div>
+    <div class="fb-field"><label>Project ID</label>
+      <input type="text" id="fb-projid" placeholder="tu-proyecto-12345"></div>
+    <div class="modal-acts">
+      <button class="btn btn-d btn-sm" id="fb-disc-btn" onclick="fbDisconnect()" style="display:none">Desconectar</button>
+      <button class="btn btn-g" onclick="closeFbModal()">Cancelar</button>
+      <button class="btn btn-p" onclick="fbConnect()">Conectar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+"use strict";
+
+/* ─── State ─────────────────────────────────────────────────── */
+var currentYear = new Date().getFullYear();
+var todayISO_val = todayISO();
+var todayDate = new Date(todayISO_val + "T00:00:00");
+
+var MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+var MONTHS_SHORT = ['Ene','Feb','Mar','Abr','May','Jun',
+                    'Jul','Ago','Sep','Oct','Nov','Dic'];
+
+/* ─── Helpers ───────────────────────────────────────────────── */
+function el(id){ return document.getElementById(id); }
+function mxn(n){ return '$'+Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function showToast(msg){
+  var t=el('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(function(){t.classList.remove('show');},3200);
+}
+
+/* ─── Tab switching ─────────────────────────────────────────── */
+function showTab(name){
+  ['mensual','futuro'].forEach(function(t){
+    el('view-'+t).classList.toggle('on', t===name);
+    el('tab-'+t).classList.toggle('on', t===name);
+  });
+}
+
+/* ─── Year nav ──────────────────────────────────────────────── */
+function changeYear(d){
+  currentYear += d;
+  renderMensual();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REPORT: INGRESOS POR MES
+═══════════════════════════════════════════════════════════════ */
+function renderMensual(){
+  var list = loadContracts();
+  var curMo = todayDate.getFullYear()*100 + (todayDate.getMonth()+1);
+
+  el('ynav-label').textContent = currentYear;
+  el('year-title-label').textContent = currentYear;
+
+  /* Build monthly buckets for currentYear */
+  var months = [];
+  for(var m=1; m<=12; m++){
+    months.push({ m:m, name:MONTHS_ES[m-1], short:MONTHS_SHORT[m-1],
+      contracts:[], total:0, sinTrl:0 });
+  }
+
+  /* Fill buckets — use fEvento if present, else cDate */
+  list.forEach(function(c){
+    var dateStr = c.fEvento || c.cDate || '';
+    if(!dateStr || dateStr.length<7) return;
+    var y = parseInt(dateStr.substr(0,4));
+    var mo = parseInt(dateStr.substr(5,2));
+    if(y !== currentYear) return;
+    var bucket = months[mo-1];
+    bucket.contracts.push(c);
+    bucket.total  += c.total    || 0;
+    bucket.sinTrl += (c.total||0) - (c.traslado||0);
+  });
+
+  /* Max for bar scaling */
+  var maxTotal = Math.max.apply(null, months.map(function(b){ return b.total; })) || 1;
+  var yearTotal   = months.reduce(function(s,b){ return s+b.total; },0);
+  var yearSinTrl  = months.reduce(function(s,b){ return s+b.sinTrl; },0);
+  var yearContracts = months.reduce(function(s,b){ return s+b.contracts.length; },0);
+  var bestMonth = months.reduce(function(a,b){ return b.total>a.total?b:a; }, months[0]);
+
+  /* ── Summary cards ── */
+  el('mensual-summary').innerHTML =
+    sCard('c-blue','💰','Total del año',mxn(yearTotal),yearContracts+' contratos') +
+    sCard('c-teal','📦','Sin traslados',mxn(yearSinTrl),'Ingresos netos estimados') +
+    sCard('c-gold','🏆','Mejor mes',bestMonth.total>0?bestMonth.name:'—',
+          bestMonth.total>0?mxn(bestMonth.total):'Sin datos aún');
+
+  /* ── Chart bars ── */
+  var barsHTML = months.map(function(b){
+    var pct = maxTotal>0 ? (b.total/maxTotal*100) : 0;
+    var isCur = (currentYear*100+b.m) === curMo;
+    var cls = isCur ? 'cb-cur' : (b.total>0 ? 'cb-past' : 'cb-zero');
+    var h = Math.max(pct*1.3, b.total>0?4:0); // max ~130px height
+    return '<div class="chart-bar-col">'+
+      '<div class="chart-bar '+cls+'" style="height:'+h.toFixed(1)+'px">'+
+        '<div class="chart-bar-val">'+mxn(b.total)+'</div>'+
+      '</div>'+
+      '<div class="chart-bar-lbl">'+b.short+'</div>'+
+    '</div>';
+  }).join('');
+  el('chart-bars').innerHTML = barsHTML;
+
+  /* ── Month table ── */
+  var tbodyHTML = months.map(function(b){
+    var moKey = currentYear*100+b.m;
+    var isCur = moKey === curMo;
+    var isFut = moKey > curMo;
+    var pct = yearTotal>0 ? (b.total/yearTotal*100) : 0;
+    var rowClass = isCur ? ' class="cur-month"' : '';
+    var badge = b.contracts.length===0
+      ? '<span class="month-badge mb-empty">Sin contratos</span>'
+      : isCur
+        ? '<span class="month-badge mb-cur">Mes actual</span>'
+        : isFut
+          ? '<span class="month-badge mb-future">Próximo</span>'
+          : '<span class="month-badge mb-past">Cerrado</span>';
+
+    var barW_total = yearTotal>0 ? (b.total/maxTotal*90).toFixed(1) : 0;
+    var barW_net   = yearTotal>0 ? (b.sinTrl/maxTotal*90).toFixed(1) : 0;
+
+    return '<tr'+rowClass+'>'+
+      '<td><div class="month-name">'+b.name+'</div>'+badge+'</td>'+
+      '<td class="contracts">'+
+        (b.contracts.length>0
+          ? '<span class="month-badge mb-past">'+b.contracts.length+'</span>'
+          : '<span style="color:var(--mid)">—</span>')+
+      '</td>'+
+      '<td class="num-main">'+( b.total>0 ? mxn(b.total) : '<span style="color:var(--mid)">—</span>' )+'</td>'+
+      '<td class="num">'+( b.total>0 ? mxn(b.sinTrl) : '<span style="color:var(--mid)">—</span>' )+'</td>'+
+      '<td>'+
+        '<div class="bar-wrap">'+
+          '<div class="bar-bg"><div class="bar-fill bar-blue" style="width:'+barW_total+'%"></div></div>'+
+          '<span style="font-size:10px;font-family:var(--fm);color:var(--mid);min-width:34px;text-align:right">'+
+            (pct>0 ? pct.toFixed(1)+'%' : '')+
+          '</span>'+
+        '</div>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+  el('month-tbody').innerHTML = tbodyHTML;
+
+  /* Totals footer */
+  el('month-tfoot').innerHTML =
+    '<tr style="background:var(--dark);color:#fff">'+
+    '<td style="padding:12px 16px;font-weight:700">Total '+currentYear+'</td>'+
+    '<td class="contracts" style="text-align:center;font-family:var(--fm);font-weight:700;padding:12px 16px">'+yearContracts+'</td>'+
+    '<td class="num-main" style="padding:12px 16px;color:#acd4f5">'+mxn(yearTotal)+'</td>'+
+    '<td class="num" style="padding:12px 16px;color:#acd4f5">'+mxn(yearSinTrl)+'</td>'+
+    '<td style="padding:12px 16px"></td>'+
+    '</tr>';
+}
+
+function sCard(colorClass, icon, lbl, val, sub){
+  return '<div class="scard '+colorClass+'">'+
+    '<span class="scard-icon">'+icon+'</span>'+
+    '<div class="scard-lbl">'+lbl+'</div>'+
+    '<div class="scard-val">'+val+'</div>'+
+    (sub?'<div class="scard-sub">'+sub+'</div>':'')+
+  '</div>';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REPORT: INGRESOS FUTUROS
+   Contratos cuyo fEvento >= hoy
+═══════════════════════════════════════════════════════════════ */
+function renderFuturo(){
+  var list = loadContracts();
+
+  /* Filter: fEvento >= today */
+  var future = list.filter(function(c){
+    if(!c.fEvento||c.fEvento.length<10) return false;
+    return c.fEvento >= todayISO_val;
+  });
+
+  /* Sort by fEvento ASC */
+  future.sort(function(a,b){ return (a.fEvento||'').localeCompare(b.fEvento||''); });
+
+  var totBruto   = future.reduce(function(s,c){ return s+(c.total||0); },0);
+  var totAnticipo= future.reduce(function(s,c){ return s+(c.anticipo||0); },0);
+  var totTrl     = future.reduce(function(s,c){ return s+(c.traslado||0); },0);
+  var totSinAnt  = totBruto - totAnticipo;          /* pendiente de cobrar */
+  var totNeto    = totBruto - totAnticipo - totTrl;  /* pendiente sin traslado */
+
+  el('future-count').textContent = future.length + (future.length===1?' contrato':' contratos');
+
+  /* ── 3 metric cards ── */
+  el('future-metric-cards').innerHTML =
+    sCard('c-blue','📋','Total bruto pendiente', mxn(totBruto),
+          future.length+' contratos con evento futuro') +
+    sCard('c-teal','💳','Pendiente por cobrar', mxn(totSinAnt),
+          'Total menos anticipos recibidos ('+mxn(totAnticipo)+')') +
+    sCard('c-green','✅','Pendiente neto', mxn(totNeto),
+          'Sin anticipos ni traslado ('+mxn(totTrl)+')');
+
+  /* ── Breakdown by time range ── */
+  var ranges = [
+    { lbl:'Hoy',         days:0,   filter:function(c){ return c.fEvento===todayISO_val; }},
+    { lbl:'Próximos 7 días',  days:7,   filter:function(c){ return c.fEvento>todayISO_val && daysDiff(c.fEvento)<=7; }},
+    { lbl:'Próximos 30 días', days:30,  filter:function(c){ return daysDiff(c.fEvento)>7 && daysDiff(c.fEvento)<=30; }},
+    { lbl:'Más de 30 días',   days:999, filter:function(c){ return daysDiff(c.fEvento)>30; }},
+  ];
+  var breakdownHTML = '<div class="future-card-hdr">'+
+    '<div class="future-card-title">Desglose por proximidad</div>'+
+    '<span class="future-card-icon">🗓</span></div>'+
+    '<div class="future-metrics">';
+  ranges.forEach(function(rng, ri){
+    var rContracts = future.filter(rng.filter);
+    var rTotal = rContracts.reduce(function(s,c){return s+(c.total||0);},0);
+    var cls = ['m1','m2','m3','m1'][ri];
+    breakdownHTML +=
+      '<div class="metric-row '+cls+'">'+
+        '<div>'+
+          '<div class="metric-lbl">'+rng.lbl+'</div>'+
+          '<div style="font-size:11px;color:var(--mid);margin-top:2px">'+rContracts.length+' contrato'+(rContracts.length!==1?'s':'')+'</div>'+
+        '</div>'+
+        '<div class="metric-val">'+mxn(rTotal)+'</div>'+
+      '</div>';
+  });
+  breakdownHTML += '</div>';
+  el('future-breakdown').innerHTML = breakdownHTML;
+
+  /* ── By month ── */
+  var byMonth = {};
+  future.forEach(function(c){
+    var key = c.fEvento.substr(0,7); // YYYY-MM
+    if(!byMonth[key]) byMonth[key] = {key:key, label:'', total:0, count:0};
+    byMonth[key].total += c.total||0;
+    byMonth[key].count++;
+    var parts = key.split('-');
+    byMonth[key].label = MONTHS_ES[parseInt(parts[1])-1]+' '+parts[0];
+  });
+  var byMonthArr = Object.values(byMonth).sort(function(a,b){return a.key.localeCompare(b.key);});
+  var bmHTML = '<div class="future-card-hdr">'+
+    '<div class="future-card-title">Por mes</div>'+
+    '<span class="future-card-icon">📆</span></div>'+
+    '<div class="future-metrics">';
+  if(byMonthArr.length===0){
+    bmHTML += '<div style="color:var(--mid);font-size:13px;text-align:center;padding:20px">Sin eventos futuros</div>';
+  } else {
+    byMonthArr.forEach(function(bm, bi){
+      var cls = ['m1','m2','m3'][bi%3];
+      bmHTML += '<div class="metric-row '+cls+'">'+
+        '<div>'+
+          '<div class="metric-lbl">'+bm.label+'</div>'+
+          '<div style="font-size:11px;color:var(--mid);margin-top:2px">'+bm.count+' contrato'+(bm.count!==1?'s':'')+'</div>'+
+        '</div>'+
+        '<div class="metric-val">'+mxn(bm.total)+'</div>'+
+      '</div>';
+    });
+  }
+  bmHTML += '</div>';
+  el('future-bymonth').innerHTML = bmHTML;
+
+  /* ── Full list ── */
+  if(future.length===0){
+    el('future-list-container').innerHTML =
+      '<div class="empty-state"><div class="ei">🗓</div>'+
+      '<p><strong>Sin contratos futuros</strong></p>'+
+      '<p style="font-size:13px;margin-top:6px">No hay contratos con fecha de evento posterior a hoy.</p></div>';
+    return;
+  }
+
+  var rows = future.map(function(c){
+    var days = daysDiff(c.fEvento);
+    var sinAnt = (c.total||0)-(c.anticipo||0);
+    var neto = sinAnt-(c.traslado||0);
+    var badge = days===0
+      ? '<span class="days-badge db-today">HOY</span>'
+      : days<=7
+        ? '<span class="days-badge db-soon">en '+days+' día'+(days!==1?'s':'')+'</span>'
+        : '<span class="days-badge db-future">en '+days+' días</span>';
+    return '<tr>'+
+      '<td><strong>'+(c.nombre||'—')+'</strong><br>'+
+        '<span style="font-size:11px;color:var(--mid)">'+(c.tel||'')+'</span></td>'+
+      '<td>'+fmtDate(c.fEvento)+'<br>'+badge+'</td>'+
+      '<td style="font-size:11px;color:var(--mid);max-width:160px;overflow:hidden;'+
+        'text-overflow:ellipsis;white-space:nowrap">'+(c.dir||'—')+'</td>'+
+      '<td class="num-main">'+mxn(c.total)+'</td>'+
+      '<td class="num">'+mxn(sinAnt)+'</td>'+
+      '<td class="num">'+mxn(neto)+'</td>'+
+    '</tr>';
+  }).join('');
+
+  el('future-list-container').innerHTML =
+    '<table class="future-list">'+
+    '<thead><tr>'+
+      '<th>Cliente</th>'+
+      '<th>Fecha evento</th>'+
+      '<th>Dirección</th>'+
+      '<th class="num">Total</th>'+
+      '<th class="num">Sin anticipo</th>'+
+      '<th class="num">Sin ant. ni trasl.</th>'+
+    '</tr></thead>'+
+    '<tbody>'+rows+'</tbody>'+
+    '<tfoot><tr style="background:var(--dark);color:#fff">'+
+      '<td style="padding:11px 16px;font-weight:700" colspan="3">Totales</td>'+
+      '<td class="num-main" style="padding:11px 16px;color:#acd4f5">'+mxn(totBruto)+'</td>'+
+      '<td class="num" style="padding:11px 16px;color:#acd4f5">'+mxn(totSinAnt)+'</td>'+
+      '<td class="num" style="padding:11px 16px;color:#acd4f5">'+mxn(totNeto)+'</td>'+
+    '</tr></tfoot>'+
+    '</table>';
+}
+
+function daysDiff(isoDate){
+  var d = new Date(isoDate+'T00:00:00');
+  var diff = Math.round((d-todayDate)/(1000*60*60*24));
+  return Math.max(0, diff);
+}
+
+/* ─── Firebase UI (same pattern as index.html) ──────────────── */
+function updateFbBadge(live){
+  var cls = live ? 'fb-pill live' : 'fb-pill local';
+  var txt = live ? '● Firebase' : '⬡ Solo local';
+  ['fb-status-sb','fb-status-top'].forEach(function(id){
+    var e=el(id); if(!e) return;
+    e.className=cls; e.textContent=txt;
+  });
+}
+function openFbModal(){
+  var cfg=fbGetConfig()||{};
+  el('fb-apikey').value=cfg.apiKey||'';
+  el('fb-dburl').value=cfg.databaseURL||'';
+  el('fb-projid').value=cfg.projectId||'';
+  el('fb-disc-btn').style.display=isFbMode()?'':'none';
+  el('fb-modal-sub').textContent=isFbMode()
+    ?'✅ Conectado a Firebase. Datos sincronizados en tiempo real.'
+    :'Conecta Firebase para compartir datos entre dispositivos.';
+  el('fb-modal').classList.add('open');
+}
+function closeFbModal(){ el('fb-modal').classList.remove('open'); }
+function fbConnect(){
+  var cfg={
+    apiKey:      el('fb-apikey').value.trim(),
+    databaseURL: el('fb-dburl').value.trim(),
+    projectId:   el('fb-projid').value.trim(),
+    authDomain:  el('fb-projid').value.trim()+'.firebaseapp.com',
+    storageBucket: el('fb-projid').value.trim()+'.appspot.com',
+    messagingSenderId:'000000000000', appId:'1:000000000000:web:000000'
+  };
+  if(!cfg.apiKey||!cfg.databaseURL||!cfg.projectId){
+    showToast('⚠️ Completa los tres campos'); return;
+  }
+  showToast('⏳ Conectando...');
+  fbSaveConfig(cfg);
+  fbInit(cfg, function(err){
+    if(err){ fbClearConfig(); showToast('❌ Error: '+err.message); updateFbBadge(false); }
+    else { updateFbBadge(true); closeFbModal(); showToast('✅ Firebase conectado'); }
+  });
+}
+function fbDisconnect(){
+  fbClearConfig(); updateFbBadge(false); closeFbModal();
+  showToast('⬡ Desconectado — datos locales');
+  renderAll();
+}
+
+/* ─── Init ──────────────────────────────────────────────────── */
+function renderAll(){
+  renderMensual();
+  renderFuturo();
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  el('sb-logo').src = 'data:image/jpeg;base64,'+LOGO_B64;
+
+  /* Subscribe to real-time changes */
+  onContractsChange(function(){ renderAll(); });
+
+  /* Try Firebase if configured */
+  var cfg = fbGetConfig();
+  if(cfg){
+    fbInit(cfg, function(err){
+      if(err){ showToast('⚠️ Firebase: '+err.message); updateFbBadge(false); }
+      else updateFbBadge(true);
+    });
+  } else {
+    updateFbBadge(false);
+    renderAll();
+  }
+});
+</script>
+</body>
+</html>
