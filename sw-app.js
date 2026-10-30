@@ -10,7 +10,7 @@
 
    Para forzar que los usuarios reciban una actualización, sube este número
    en el próximo deploy. */
-var CACHE_VERSION = "casvel-app-v3"; // MODIFIED: v3 — módulos finanzas.html y respaldos.html
+var CACHE_VERSION = "casvel-app-v4"; // MODIFIED: v4 — renta multi-día (shared.js / mobile.html / index.html)
 
 var APP_SHELL = [
   "./mobile.html",

@@ -792,7 +792,7 @@ async function buildDOCX(d){
   (d.items||[]).forEach(function(r,i){
     var it=getItemByIndex(i);
     if(!it.pq) return; // artículo sin bookmark OOXML — omitir
-    xml=repPara(xml,it.pq,r&&r.qty>0?String(r.qty):"");
+    xml=repPara(xml,it.pq,r&&r.qty>0?String(r.qty)+(rentalDays(d)>1?" x "+rentalDays(d)+" días":""):""); // MODIFIED: detalle × días
     xml=repPara(xml,it.pa,r&&r.amt>0?f2(r.amt*rentalDays(d)):"$"); // MODIFIED: importe × días
   });
   xml=repPara(xml,PARA.trl,d.traslado>0?f2(d.traslado):"$");
@@ -828,10 +828,20 @@ function buildA4Node(d){
     var price=hasQty?r.price:it.price;
     return '<tr class="'+cls+'">'
       +'<td class="tdesc">'+it.desc+'</td>'
-      +'<td class="tnum">'+(hasQty?r.qty:'')+'</td>'
+      +'<td class="tnum">'+(hasQty?r.qty+(rentalDays(d)>1?' × '+rentalDays(d)+' d':''):'')+'</td>' /* MODIFIED: detalle × días */
       +'<td class="tnum">$'+price.toFixed(2)+'</td>'
       +'<td class="tnum">'+(hasQty?f2(r.amt*rentalDays(d)):'')+'</td></tr>'; // MODIFIED: importe × días de renta
   }).join("");
+  // ADDED: artículos adicionales / Fairy (antes no aparecían en este formato). No se multiplican por días.
+  (d.extraItems||[]).forEach(function(ex,k){
+    if(!ex||!ex.qty||!ex.desc) return;
+    irows+='<tr class="'+((ITEMS.length+k)%2===0?'odd':'even')+'">'
+      +'<td class="tdesc">'+xe(ex.desc)+(ex.isFairy?'':' <em style="font-weight:normal">(adicional)</em>')+'</td>'
+      +'<td class="tnum">'+ex.qty+'</td>'
+      +'<td class="tnum">'+f2(ex.price)+'</td>'
+      +'<td class="tnum">'+f2(ex.amt)+'</td></tr>';
+  });
+  var multiDias=rentalDays(d)>1; // ADDED
 
   var html=
     '<div class="a4p">'
@@ -884,8 +894,11 @@ function buildA4Node(d){
 
     +'<div class="csh1" style="margin-top:0.6em">CLAUSULAS PARA ALQUILER:</div>'
     +'<div class="ccl"><ol>'
-      +'<li>El mobiliario se alquila por día, se entrega el día del evento y se retira el mismo día o al día siguiente a más tardar las 12:00 pm.</li>'
-      +'<li>El costo del alquiler no incluye Traslado.</li>'
+      +(multiDias /* MODIFIED: multi-día */
+        ? '<li>El mobiliario se alquila por día durante el periodo del '+fmtDate(d.fEvento)+' al '+fmtDate(rentalEnd(d))+' ('+rentalDays(d)+' días); se entrega el primer día y se retira el último día del periodo o al día siguiente a más tardar las 12:00 pm.</li>'
+          +'<li>El costo del alquiler no incluye Traslado; el traslado se cobra una sola vez por todo el periodo de renta.</li>'
+        : '<li>El mobiliario se alquila por día, se entrega el día del evento y se retira el mismo día o al día siguiente a más tardar las 12:00 pm.</li>'
+          +'<li>El costo del alquiler no incluye Traslado.</li>')
       +'<li>El pago debe de hacerse al momento de la entrega del mobiliario.</li>'
       +'<li>El mobiliario solo debe ser trasladado por el arrendador y no debe ser trasladado a otro sitio ya que puede sufrir daños con costo adicional.</li>'
       +'<li>El mobiliario debe entregarse en las mismas condiciones físicas recibidas, sin piezas faltantes ni quebraduras o quemaduras, ya que esto correrá por cuenta del arrendatario.</li>'

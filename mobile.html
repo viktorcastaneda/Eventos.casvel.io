@@ -965,7 +965,11 @@ if(!/[?&]m=1/.test(location.search) && !/[?&]view=/.test(location.search) &&
         <div class="fg"><label class="flb">Fecha de cotización</label>
           <input type="date" class="fi" id="q-cdate" style="color-scheme:light"></div>
         <div class="fg"><label class="flb">Fecha del evento</label>
-          <input type="date" class="fi" id="q-fevento" onchange="qUpdateInvWarn()" style="color-scheme:light"></div>
+          <input type="date" class="fi" id="q-fevento" onchange="qDatesChanged()" style="color-scheme:light"></div>
+        <!-- ADDED: renta multi-día en cotización -->
+        <div class="fg"><label class="flb">Hasta (opcional — renta de varios días)</label>
+          <input type="date" class="fi" id="q-ffin" onchange="qDatesChanged()" style="color-scheme:light">
+          <div id="q-dias-info" style="font-size:12px;color:var(--mid);margin-top:4px"></div></div>
         <div class="fg"><label class="flb">Hora de entrega</label>
           <select class="fi" id="q-hentrega"></select></div>
         <div class="fg"><label class="flb">Hora de recolección</label>
@@ -2540,7 +2544,8 @@ function renderSummary(){
   function sl(id){ var e=el(id); return (e&&e.options&&e.options[e.selectedIndex])?e.options[e.selectedIndex].text:'—'; }
   var il=ITEMS.map(function(it,i){
     if(!d.items[i]||!d.items[i].qty) return '';
-    return '<li><span>'+it.desc+' ×'+d.items[i].qty+'</span><span>$'+d.items[i].amt.toFixed(2)+'</span></li>';
+    // MODIFIED: multi-día — importe del periodo completo
+    return '<li><span>'+it.desc+' ×'+d.items[i].qty+(rentalDays(d)>1?' × '+rentalDays(d)+' días':'')+'</span><span>$'+(d.items[i].amt*rentalDays(d)).toFixed(2)+'</span></li>';
   }).filter(Boolean).join('');
   // ADDED: extra items in summary
   var xl=(d.extraItems||[]).filter(function(ex){return ex.qty>0&&ex.desc;}).map(function(ex){
@@ -2871,6 +2876,7 @@ function _cpdfRender(d){
   function cell(span, k, v){
     return '<div class="cpdf-cell" style="grid-column:span '+span+'"><div class="k">'+k+'</div><div class="v">'+(v||'—')+'</div></div>';
   }
+  var NDIAS = rentalDays(d), MULTI = NDIAS > 1; // ADDED: renta multi-día
 
   /* ── 01 · Datos generales ── */
   var secA =
@@ -2879,9 +2885,10 @@ function _cpdfRender(d){
         cell(4,'Arrendatario',X(d.nombre))+
         cell(2,'Teléfono',X(d.tel))+
         cell(6,'Dirección del evento',X(d.dir))+
-        cell(2,'Fecha del evento',fmtDate(d.fEvento))+
-        cell(2,'Horario de entrega',X(d.hEntregaL||d.hEntrega))+
-        cell(2,'Horario de recolección',X(d.hRecolL||d.hRecol))+
+        // MODIFIED: multi-día — el periodo de renta ocupa toda la fila y muestra el rango completo
+        (MULTI ? cell(6,'Periodo de renta ('+NDIAS+' días)',fmtDate(d.fEvento)+' al '+fmtDate(rentalEnd(d))) : cell(2,'Fecha del evento',fmtDate(d.fEvento)))+
+        cell(MULTI?3:2,MULTI?'Horario de entrega (primer día)':'Horario de entrega',X(d.hEntregaL||d.hEntrega))+
+        cell(MULTI?3:2,MULTI?'Horario de recolección (último día)':'Horario de recolección',X(d.hRecolL||d.hRecol))+
       '</div></div>';
 
   /* ── 02 · Mobiliario (la tabla se parte por filas, repitiendo encabezado) ── */
@@ -2889,14 +2896,15 @@ function _cpdfRender(d){
   ITEMS.forEach(function(it, i){
     var r = d.items[i];
     if(!r || !r.qty) return;
-    rows.push('<tr><td class="d">'+X(it.desc)+'</td><td class="num">'+r.qty+'</td><td class="num">'+CM(r.price)+'</td><td class="num">'+CM(r.amt)+'</td></tr>');
+    // MODIFIED: multi-día — columna Días e importe = cantidad × precio diario × días
+    rows.push('<tr><td class="d">'+X(it.desc)+'</td><td class="num">'+r.qty+'</td>'+(MULTI?'<td class="num">'+NDIAS+'</td>':'')+'<td class="num">'+CM(r.price)+(MULTI?' <em>/día</em>':'')+'</td><td class="num">'+CM(r.amt*NDIAS)+'</td></tr>');
   });
   (d.extraItems||[]).forEach(function(ex){
     if(!ex.qty || !ex.desc) return;
     if(ex.isFairy) hasFairyItem = true;
-    rows.push('<tr><td class="d">'+X(ex.desc)+'<em>'+(ex.isFairy?'Fairy Decoraciones':'adicional')+'</em></td><td class="num">'+ex.qty+'</td><td class="num">'+CM(ex.price)+'</td><td class="num">'+CM(ex.amt)+'</td></tr>');
+    rows.push('<tr><td class="d">'+X(ex.desc)+'<em>'+(ex.isFairy?'Fairy Decoraciones':'adicional')+'</em></td><td class="num">'+ex.qty+'</td>'+(MULTI?'<td class="num">—</td>':'')+'<td class="num">'+CM(ex.price)+'</td><td class="num">'+CM(ex.amt)+'</td></tr>'); // MODIFIED: extras no se multiplican por días
   });
-  if(!rows.length) rows.push('<tr><td colspan="4" style="text-align:center;color:#8a94a6;font-style:italic">Sin artículos registrados</td></tr>');
+  if(!rows.length) rows.push('<tr><td colspan="'+(MULTI?5:4)+'"style="text-align:center;color:#8a94a6;font-style:italic">Sin artículos registrados</td></tr>');
 
   newPage();
   addBlock(secA);
@@ -2904,8 +2912,12 @@ function _cpdfRender(d){
   var tblWrap, tbody;
   function startTable(cont){
     tblWrap = toNode('<div class="cpdf-blk">'+secHTML('02','Mobiliario a arrendar'+(cont?' · continuación':''))+
-      '<table class="cpdf-tbl"><colgroup><col style="width:52%"><col style="width:12%"><col style="width:18%"><col style="width:18%"></colgroup>'+
-      '<thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">P. unitario</th><th class="num">Importe</th></tr></thead>'+
+      // MODIFIED: multi-día agrega la columna "Días"
+      (MULTI
+        ? '<table class="cpdf-tbl"><colgroup><col style="width:40%"><col style="width:10%"><col style="width:10%"><col style="width:20%"><col style="width:20%"></colgroup>'+
+          '<thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">Días</th><th class="num">P. unit. / día</th><th class="num">Importe</th></tr></thead>'
+        : '<table class="cpdf-tbl"><colgroup><col style="width:52%"><col style="width:12%"><col style="width:18%"><col style="width:18%"></colgroup>'+
+          '<thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">P. unitario</th><th class="num">Importe</th></tr></thead>')+
       '<tbody></tbody></table></div>');
     tbody = tblWrap.querySelector('tbody');
     curBody.appendChild(tblWrap);
@@ -2930,8 +2942,8 @@ function _cpdfRender(d){
   var pagado = d.liquidado || saldo <= 0.004;
   var totHTML =
     '<div class="cpdf-blk cpdf-tot"><div class="cpdf-tot-in">'+
-      (d.traslado>0?'<div class="cpdf-tl"><span>Subtotal artículos</span><span>'+CM(subtotal)+'</span></div>'+
-                    '<div class="cpdf-tl"><span>Traslado</span><span>'+CM(d.traslado)+'</span></div>':'')+
+      ((d.traslado>0||MULTI)?'<div class="cpdf-tl"><span>Subtotal artículos'+(MULTI?' ('+NDIAS+' días)':'')+'</span><span>'+CM(subtotal)+'</span></div>'+
+                    '<div class="cpdf-tl"><span>Traslado'+(MULTI?' (cargo único)':'')+'</span><span>'+CM(d.traslado)+'</span></div>':'')+
       '<div class="cpdf-tl strong"><span>Total</span><span>'+CM(d.total)+'</span></div>'+
       '<div class="cpdf-tl"><span>Anticipo recibido</span><span>− '+CM(d.anticipo)+'</span></div>'+
       abonos.map(function(a){
@@ -2949,8 +2961,10 @@ function _cpdfRender(d){
 
   /* ── 03 · Cláusulas (cada cláusula es un bloque; los títulos no quedan huérfanos) ── */
   var clausulas = [
-    'El mobiliario se alquila por día, se entrega el día del evento y se retira el mismo día o al día siguiente a más tardar las 12:00 pm.',
-    'El costo del alquiler no incluye Traslado.',
+    // MODIFIED: multi-día — cláusulas 1 y 2 reflejan el periodo y el traslado único
+    MULTI ? 'El mobiliario se alquila por día durante el periodo del '+fmtDate(d.fEvento)+' al '+fmtDate(rentalEnd(d))+' ('+NDIAS+' días); se entrega el primer día y se retira el último día del periodo o al día siguiente a más tardar las 12:00 pm.'
+          : 'El mobiliario se alquila por día, se entrega el día del evento y se retira el mismo día o al día siguiente a más tardar las 12:00 pm.',
+    MULTI ? 'El costo del alquiler no incluye Traslado; el traslado se cobra una sola vez por todo el periodo de renta.' : 'El costo del alquiler no incluye Traslado.',
     'El pago debe de hacerse al momento de la entrega del mobiliario.',
     'El mobiliario solo debe ser trasladado por el arrendador, se entrega en el lugar donde se realizará el evento, no debe de ser trasladado a otro sitio, ya que puede sufrir daños y esto tendría un costo adicional.',
     'El mobiliario debe de entregarse en las condiciones físicas en las cuales se haya recibido, no faltar piezas, ni evidenciar quebraduras, roturas o quemaduras, ya que esto correrá por cuenta del arrendatario.',
@@ -3057,8 +3071,8 @@ function openDetailSheet(id){
     if(!r||!(r.qty>0)) return '';
     // MODIFIED: usa getItemByIndex para compatibilidad con contratos pasados
     return '<div class="det-item-row">'+
-      '<span class="det-item-name">'+getItemByIndex(i).desc+' ×'+r.qty+'</span>'+
-      '<span class="det-item-amt">$'+r.amt.toFixed(2)+'</span>'+
+      '<span class="det-item-name">'+getItemByIndex(i).desc+' ×'+r.qty+(rentalDays(c)>1?' × '+rentalDays(c)+' d':'')+'</span>'+ /* MODIFIED: multi-día */
+      '<span class="det-item-amt">$'+(r.amt*rentalDays(c)).toFixed(2)+'</span>'+
     '</div>';
   }).filter(Boolean).join('');
   var itemsSec=el('det-items-section');
@@ -3132,7 +3146,7 @@ function openDetailSheet(id){
   var itemRows=(c.items||[]).map(function(r,i){
     if(!r||!(r.qty>0)) return '';
     // MODIFIED: usa getItemByIndex para compatibilidad con contratos pasados
-    return '<div class="det-item-row"><span class="det-item-name">'+getItemByIndex(i).desc+' ×'+r.qty+'</span><span class="det-item-amt">$'+r.amt.toFixed(2)+'</span></div>';
+    return '<div class="det-item-row"><span class="det-item-name">'+getItemByIndex(i).desc+' ×'+r.qty+(rentalDays(c)>1?' × '+rentalDays(c)+' d':'')+'</span><span class="det-item-amt">$'+(r.amt*rentalDays(c)).toFixed(2)+'</span></div>'; // MODIFIED: multi-día
   }).filter(Boolean).join('');
   el('det-items-rows').innerHTML=itemRows||'<div style="font-size:13px;color:var(--mid);padding:4px 0">Sin artículos</div>';
   // ADDED: artículos adicionales
@@ -3413,11 +3427,24 @@ function qCalc(){
     var p=parseFloat((el('qqp'+i)||{value:it.price}).value)||it.price;
     sub+=q*p;
   });
+  // MODIFIED: multi-día — artículos del catálogo × días; extras y traslado no se multiplican
+  sub*=qDias();
   Q_extraItems.forEach(function(ex){ sub+=(ex.qty||0)*(ex.price||0); });
   var tr=parseFloat(gv('q-traslado'))||0;
   var g=sub+tr;
   st('q-sub','$'+sub.toFixed(2));
   st('q-total','$'+g.toFixed(2));
+}
+
+/* ADDED: renta multi-día en cotizaciones */
+function qDias(){ return rentalDays({fEvento:gv('q-fevento'), fFin:gv('q-ffin')}); }
+function qDatesChanged(){
+  var fe=gv('q-fevento'), ff=gv('q-ffin');
+  if(ff && fe && ff<fe){ sv('q-ffin',''); showToast('⚠️ La fecha final no puede ser anterior al inicio'); }
+  var n=qDias(), inf=el('q-dias-info');
+  if(inf) inf.textContent = n>1 ? '📅 '+n+' días de renta · el traslado se cobra una sola vez' : '';
+  qCalc();
+  qUpdateInvWarn();
 }
 
 /* ── Quotation inventory warning ── */
@@ -3433,7 +3460,7 @@ function qUpdateInvWarn(){
   var fEvento=gv('q-fevento');
   if(!fEvento){ iw.textContent=''; iw.classList.remove('on'); Q_invConflicts=[]; return; }
   var prev=Q_invConflicts.length;
-  Q_invConflicts=checkInventory(qGetCurrentItems(),fEvento,null);
+  Q_invConflicts=checkInventory(qGetCurrentItems(),fEvento,null,gv('q-ffin')); // MODIFIED: rango
   if(Q_invConflicts.length>0){
     iw.innerHTML='&#9888;&#65039; <strong>Inventario excedido</strong> — ajusta cantidades antes de continuar.';
     iw.classList.add('on');
@@ -3448,11 +3475,11 @@ function openQInvModal(){
   var fEvento=gv('q-fevento');
   var cl=el('inv-conflict-list');
   var sub=el('inv-modal-sub');
-  if(sub) sub.textContent='La cotización del '+fmtDate(fEvento)+' supera el inventario en:';
+  if(sub) sub.textContent='La cotización del '+fmtRange({fEvento:fEvento,fFin:gv('q-ffin')})+' supera el inventario en:'; // MODIFIED: rango
   if(cl) cl.innerHTML=Q_invConflicts.map(function(x){
     var over=x.used-x.max;
     return '<div class="inv-conflict-item">'+
-      '<span class="inv-conflict-name">'+x.name+'</span>'+
+      '<span class="inv-conflict-name">'+x.name+(qDias()>1&&x.day?' <small>('+fmtDate(x.day)+')</small>':'')+'</span>'+
       '<span class="inv-conflict-nums">'+x.used+'/'+x.max+' &nbsp;(+'+over+' de m&#225;s)</span>'+
     '</div>';
   }).join('');
@@ -3467,13 +3494,18 @@ function openQInvSheet(){
   if(!rows) return;
   var usageOthers={};
   if(fEvento){
-    loadContracts().filter(function(c){
-      return c.fEvento===fEvento && resolveStatus(c)!=='cancelado';
-    }).forEach(function(c){
-      (c.items||[]).forEach(function(r,i){
-        if(!r||!(r.qty>0)) return;
-        ITEM_RESOURCES[i].forEach(function(res){ usageOthers[res[0]]=(usageOthers[res[0]]||0)+r.qty*res[1]; });
+    // MODIFIED: multi-día — por recurso se toma el día de mayor uso del rango
+    rangeDates(fEvento,gv('q-ffin')).forEach(function(day){
+      var u={};
+      loadContracts().filter(function(c){
+        return contractCoversDate(c,day) && resolveStatus(c)!=='cancelado';
+      }).forEach(function(c){
+        (c.items||[]).forEach(function(r,i){
+          if(!r||!(r.qty>0)) return;
+          ITEM_RESOURCES[i].forEach(function(res){ u[res[0]]=(u[res[0]]||0)+r.qty*res[1]; });
+        });
       });
+      Object.keys(u).forEach(function(k){ if(u[k]>(usageOthers[k]||0)) usageOthers[k]=u[k]; });
     });
   }
   var usageMine={};
@@ -3481,7 +3513,7 @@ function openQInvSheet(){
     if(!r||!(r.qty>0)) return;
     ITEM_RESOURCES[i].forEach(function(res){ usageMine[res[0]]=(usageMine[res[0]]||0)+r.qty*res[1]; });
   });
-  if(sub) sub.textContent=fEvento?'Para el evento del '+fmtDate(fEvento):'Sin fecha — mostrando máximos';
+  if(sub) sub.textContent=fEvento?'Para el evento del '+fmtRange({fEvento:fEvento,fFin:gv('q-ffin')}):'Sin fecha — mostrando máximos'; // MODIFIED: rango
   var keys=Object.keys(DAILY_INVENTORY);
   rows.innerHTML=keys.map(function(key){
     var max=DAILY_INVENTORY[key], others=usageOthers[key]||0, mine=usageMine[key]||0, avail=max-others-mine;
@@ -3510,6 +3542,7 @@ function qCollect(){
     cDate:gv('q-cdate'), nombre:gv('q-nombre'), tel:gv('q-tel'), dir:gv('q-dir'),
     fEvento:gv('q-fevento'), hEntrega:gv('q-hentrega'), hEntregaL:sl('q-hentrega'),
     hRecol:gv('q-hrecol'), hRecolL:sl('q-hrecol'),
+    fFin:(gv('q-ffin')&&gv('q-ffin')>gv('q-fevento'))?gv('q-ffin'):'', dias:qDias(), // ADDED: multi-día
     traslado:parseFloat(gv('q-traslado'))||0,
     total:total, items:items,
     extraItems: Q_extraItems.filter(function(ex){return ex.qty>0||ex.desc;}).map(function(ex){
@@ -3523,7 +3556,8 @@ function qCollect(){
 function qPopulate(d){
   sv('q-nombre',d.nombre||''); sv('q-tel',d.tel||'');
   sv('q-dir',d.dir||'');       sv('q-cdate',d.cDate||todayISO());
-  sv('q-fevento',d.fEvento||''); sv('q-hentrega',d.hEntrega||'');
+  sv('q-fevento',d.fEvento||''); sv('q-ffin',d.fFin||''); sv('q-hentrega',d.hEntrega||''); // MODIFIED: + fFin
+  var _qdi=el('q-dias-info'); if(_qdi) _qdi.textContent = rentalDays(d)>1 ? '📅 '+rentalDays(d)+' días de renta · el traslado se cobra una sola vez' : '';
   sv('q-hrecol',d.hRecol||'');   sv('q-traslado',d.traslado||0);
   sv('q-notas',d.notas||'');
   if(d.items) d.items.forEach(function(r,i){
@@ -3545,7 +3579,7 @@ function renderQSummary(){
   function sl(id){ var e=el(id); return (e&&e.options&&e.options[e.selectedIndex])?e.options[e.selectedIndex].text:'—'; }
   var il=ITEMS.map(function(it,i){
     if(!d.items[i]||!d.items[i].qty) return '';
-    return '<li><span>'+it.desc+' ×'+d.items[i].qty+'</span><span>$'+d.items[i].amt.toFixed(2)+'</span></li>';
+    return '<li><span>'+it.desc+' ×'+d.items[i].qty+(rentalDays(d)>1?' × '+rentalDays(d)+' días':'')+'</span><span>$'+(d.items[i].amt*rentalDays(d)).toFixed(2)+'</span></li>'; // MODIFIED: multi-día
   }).filter(Boolean).join('');
   var xl=(d.extraItems||[]).filter(function(ex){return ex.qty>0&&ex.desc;}).map(function(ex){
     return '<li><span>'+_xe(ex.desc)+' ×'+ex.qty+'</span><span>$'+ex.amt.toFixed(2)+'</span></li>';
@@ -3554,7 +3588,7 @@ function renderQSummary(){
   g.innerHTML=
     '<div class="card"><div class="card-ttl">Cliente</div>'+
       sr('Nombre',d.nombre||'—')+sr('Teléfono',d.tel||'—')+sr('Dirección',d.dir||'—')+
-      sr('Fecha evento',fmtDate(d.fEvento))+sr('Fecha cotización',fmtDate(d.cDate))+
+      sr(rentalDays(d)>1?'Periodo de renta':'Fecha evento',fmtRange(d))+sr('Fecha cotización',fmtDate(d.cDate))+ // MODIFIED
       sr('Entrega',sl('q-hentrega'))+sr('Recolección',sl('q-hrecol'))+
     '</div>'+
     '<div class="card"><div class="card-ttl">Mobiliario</div>'+
@@ -3593,7 +3627,8 @@ function qSave(){
 function startNewQuot(){
   Q_editId=null;
   sv('q-nombre',''); sv('q-tel',''); sv('q-dir','');
-  sv('q-cdate',todayISO()); sv('q-fevento','');
+  sv('q-cdate',todayISO()); sv('q-fevento',''); sv('q-ffin',''); // MODIFIED: reset fFin
+  var _qdi=el('q-dias-info'); if(_qdi) _qdi.textContent='';
   sv('q-hentrega',''); sv('q-hrecol',''); sv('q-traslado',0);
   sv('q-notas','');
   var iw=el('q-inv-warn'); if(iw){ iw.textContent=''; iw.classList.remove('on'); }
@@ -3741,7 +3776,7 @@ function _mDoPDFCotizacionImpl(fromSheet){
         '<tr style="background:#f8fafc">'+
           infoCell('No. Cotización',cotNum)+
           infoCell('Fecha Cotización',fmtDate(d.cDate))+
-          infoCell('Fecha Evento',fmtDate(d.fEvento))+
+          infoCell(rentalDays(d)>1?'Periodo de renta':'Fecha Evento',rentalDays(d)>1?fmtDate(d.fEvento)+' al '+fmtDate(rentalEnd(d))+' ('+rentalDays(d)+' días)':fmtDate(d.fEvento))+ /* MODIFIED: multi-día */
           infoCell('Entrega',d.hEntregaL||d.hEntrega)+
           infoCell('Recolección',d.hRecolL||d.hRecol)+
         '</tr>'+
@@ -3765,7 +3800,8 @@ function _mDoPDFCotizacionImpl(fromSheet){
     var r=d.items[i];
     if(!r||!r.qty) return;
     hasAny=true;
-    tableRows+='<tr><td>'+_xe(it.desc)+'</td><td class="num">'+r.qty+'</td><td class="num">$'+r.price.toFixed(2)+'</td><td class="num">$'+r.amt.toFixed(2)+'</td></tr>';
+    // MODIFIED: multi-día — detalle "× N días" e importe total del periodo
+    tableRows+='<tr><td>'+_xe(it.desc)+'</td><td class="num">'+r.qty+(rentalDays(d)>1?' × '+rentalDays(d)+' d':'')+'</td><td class="num">$'+r.price.toFixed(2)+(rentalDays(d)>1?' /día':'')+'</td><td class="num">$'+(r.amt*rentalDays(d)).toFixed(2)+'</td></tr>';
   });
   (d.extraItems||[]).forEach(function(ex){
     if(!ex.qty||!ex.desc) return;
@@ -3782,8 +3818,8 @@ function _mDoPDFCotizacionImpl(fromSheet){
         '<thead><tr><th>Descripción del Artículo</th><th style="text-align:right">Cant.</th><th style="text-align:right">P. Unitario</th><th style="text-align:right">Importe</th></tr></thead>'+
         '<tbody>'+tableRows+'</tbody>'+
         '<tfoot>'+
-          (d.traslado>0?'<tr class="tfoot"><td colspan="3">Subtotal artículos</td><td class="num">$'+subtotal.toFixed(2)+'</td></tr>':'')+
-          (d.traslado>0?'<tr class="tfoot"><td colspan="3">Traslado estimado</td><td class="num">$'+d.traslado.toFixed(2)+'</td></tr>':'')+
+          ((d.traslado>0||rentalDays(d)>1)?'<tr class="tfoot"><td colspan="3">Subtotal artículos'+(rentalDays(d)>1?' ('+rentalDays(d)+' días)':'')+'</td><td class="num">$'+subtotal.toFixed(2)+'</td></tr>':'')+
+          (d.traslado>0?'<tr class="tfoot"><td colspan="3">Traslado estimado'+(rentalDays(d)>1?' (cargo único)':'')+'</td><td class="num">$'+d.traslado.toFixed(2)+'</td></tr>':'')+
           '<tr class="tfoot-total"><td colspan="3">TOTAL ESTIMADO</td><td class="num">$'+d.total.toFixed(2)+'</td></tr>'+
         '</tfoot>'+
       '</table>'+

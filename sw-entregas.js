@@ -15,7 +15,7 @@
 // entregas.html nuevo — "ReferenceError: entregaKey is not defined" al
 // renderizar, que se veía como "al cambiar de fecha no muestra contratos".
 // Subir este número fuerza a esos dispositivos a descartar ese caché viejo.
-var CACHE_VERSION = "casvel-entregas-v4";
+var CACHE_VERSION = "casvel-entregas-v5"; // MODIFIED: v5 — renta multi-día
 
 var APP_SHELL = [
   "./entregas.html",

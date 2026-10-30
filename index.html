@@ -340,6 +340,14 @@ if(!/[?&]d=1/.test(location.search) &&
         </div>
         <div class="inv-warn-panel" id="inv-warning-desk"></div>
       </div>
+      <!-- ADDED: artículos adicionales (no inventariados) y Fairy Decoraciones — igual que en móvil -->
+      <div class="extra-panel no-print" style="margin-top:10px;display:block">
+        <label style="font-weight:700;font-size:13px">➕ Artículos adicionales (no se multiplican por días)</label>
+        <div id="d-extra-items" style="margin:8px 0"></div>
+        <button class="btn btn-g btn-sm" onclick="addDeskExtra(false)">＋ Artículo no listado</button>
+        <button class="btn btn-g btn-sm" onclick="addDeskExtra(true)">🧚 Agregar Fairy Decoraciones</button>
+        <div id="d-abonos-info" style="display:none;margin-top:8px;font-size:12.5px;color:#475569"></div>
+      </div>
       <div class="a4-wrap">
         <div class="a4-page" id="a4page">
           <div class="c-hdr">
@@ -362,6 +370,12 @@ if(!/[?&]d=1/.test(location.search) &&
               <td><div class="c-fl"><label>Dirección del evento:</label><input type="text" class="c-fi" id="c-dir"></div></td>
               <td><div class="c-fl"><label>Fecha del Evento:</label>
                 <input type="date" class="c-fi" id="c-fevento" style="flex:none;width:auto"></div></td>
+            </tr><tr>
+              <!-- ADDED: renta multi-día — fecha final opcional -->
+              <td><div class="c-fl"><label>Renta de varios días (opcional):</label>
+                <span id="c-dias-info" style="font-size:0.85em;color:#2563a8;font-weight:bold"></span></div></td>
+              <td><div class="c-fl"><label>Hasta:</label>
+                <input type="date" class="c-fi" id="c-ffin" style="flex:none;width:auto"></div></td>
             </tr><tr>
               <td><div class="c-fl"><label>Horario de entrega:</label>
                 <select class="c-fi" id="c-hentrega"></select></div></td>
@@ -566,12 +580,22 @@ document.addEventListener('DOMContentLoaded', function(){
   el('c-hrecol').innerHTML   = opts;
 
   buildItemsTable();
+  // ADDED: catálogo dinámico (igual que móvil) — antes la tabla se construía una sola vez y,
+  // si el catálogo cambiaba (Firebase / editado en móvil), faltaban filas y fallaba Nuevo/Editar.
+  onCatalogChange(function(){
+    var keep=[];
+    for(var k=0;el('dq'+k);k++) keep.push({q:el('dq'+k).value,p:el('dp'+k).value,pOrig:el('dp'+k).defaultValue});
+    buildItemsTable();
+    keep.forEach(function(v,k){ if(el('dq'+k)){ el('dq'+k).value=v.q; if(v.p!==v.pOrig) el('dp'+k).value=v.p; /* precio editado a mano se conserva */ } });
+    calcDesk();
+  });
   el('c-cdate').value = todayISO();
 
   el('c-anticipo').addEventListener('input', function(){
     this.dataset.manual='1'; calcDesk();
   });
-  el('c-fevento').addEventListener('change', updateInvWarningDesk);
+  el('c-fevento').addEventListener('change', deskDatesChanged); // MODIFIED: recalcula días/total además del inventario
+  el('c-ffin').addEventListener('change', deskDatesChanged);    // ADDED: renta multi-día
 
   // Suscribir a cambios en tiempo real (funciona con localStorage Y Firebase)
   // MODIFIED (perf): antes cada cambio re-renderizaba Dashboard + Historial
@@ -672,22 +696,63 @@ function buildItemsTable(){
   }).join('');
 }
 
+/* ADDED: renta multi-día — días del formulario y cambios de fecha */
+function deskDias(){ return rentalDays({fEvento:el('c-fevento').value, fFin:el('c-ffin').value}); }
+function deskDatesChanged(){
+  var fe=el('c-fevento').value, ff=el('c-ffin').value;
+  if(ff && fe && ff<fe){ el('c-ffin').value=''; showToast('⚠️ La fecha final no puede ser anterior al inicio'); }
+  calcDesk();
+}
+
+/* ADDED: artículos adicionales y Fairy (mismo modelo de datos que móvil) */
+var D_extraItems = [];
+function renderDeskExtras(){
+  var c=el('d-extra-items'); if(!c) return;
+  c.innerHTML=D_extraItems.map(function(ex,i){
+    var amt=(ex.qty||0)*(ex.price||0);
+    return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'+
+      (ex.isFairy?'<span style="font-size:12px">🧚</span>':'')+
+      '<input type="text" placeholder="Descripción..." value="'+xe(ex.desc||'')+'" style="flex:2;min-width:180px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px" oninput="updDeskExtra('+i+',\'desc\',this.value)">'+
+      '<input type="number" min="0" step="1" value="'+(ex.qty||0)+'" title="Cantidad" style="width:70px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px" oninput="updDeskExtra('+i+',\'qty\',this.value)">'+
+      '<input type="number" min="0" step="0.01" value="'+(ex.price||'')+'" placeholder="$ precio" style="width:100px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px" oninput="updDeskExtra('+i+',\'price\',this.value)">'+
+      '<span id="d-exa'+i+'" style="width:90px;text-align:right;font-weight:700">'+f2(amt)+'</span>'+
+      '<button class="btn btn-d btn-sm" onclick="removeDeskExtra('+i+')">✕</button>'+
+    '</div>';
+  }).join('');
+}
+function addDeskExtra(isFairy){
+  D_extraItems.push(isFairy ? {desc:'Fairy Decoraciones',qty:1,price:0,isFairy:true} : {desc:'',qty:1,price:0});
+  renderDeskExtras(); calcDesk();
+}
+function removeDeskExtra(i){ D_extraItems.splice(i,1); renderDeskExtras(); calcDesk(); }
+function updDeskExtra(i,field,val){
+  if(!D_extraItems[i]) return;
+  if(field==='price'||field==='qty') D_extraItems[i][field]=parseFloat(val)||0; else D_extraItems[i][field]=val;
+  var ae=el('d-exa'+i); if(ae) ae.textContent=f2((D_extraItems[i].qty||0)*(D_extraItems[i].price||0));
+  calcDesk();
+}
+
 /* ── Calculate ── */
 function calcDesk(){
-  var sub=0;
+  var sub=0, nd=deskDias(); // MODIFIED: multi-día
   ITEMS.forEach(function(_,i){
     var q=parseFloat(el('dq'+i).value)||0;
     var p=parseFloat(el('dp'+i).value)||0;
-    var a=q*p; sub+=a;
+    var a=q*p*nd; sub+=a;                       // MODIFIED: importe del renglón = cantidad × precio × días
     el('da'+i).textContent=q>0?f2(a):'$';
   });
+  // ADDED: adicionales/Fairy suman sin multiplicar por días
+  D_extraItems.forEach(function(ex){ sub+=(ex.qty||0)*(ex.price||0); });
+  var inf=el('c-dias-info'); if(inf) inf.textContent = nd>1 ? nd+' días · traslado único' : '';
   var tr=parseFloat(el('c-traslado').value)||0;
   var g=sub+tr;
   el('c-total').textContent=f2(g);
   var ai=el('c-anticipo');
   if(!ai.dataset.manual) ai.value=(g*.25).toFixed(2);
   // MODIFIED: descuenta los abonos ya registrados (se administran desde la app móvil)
-  el('c-resta').textContent='Resta por Pagar: '+f2(g-(parseFloat(ai.value)||0)-sumAbonos(getById(D_editId)||{}));
+  var _ab=sumAbonos(getById(D_editId)||{});
+  el('c-resta').textContent='Resta por Pagar: '+f2(g-(parseFloat(ai.value)||0)-_ab);
+  var abi=el('d-abonos-info'); if(abi){ abi.style.display=_ab>0?'':'none'; abi.textContent='Abonos registrados: −'+f2(_ab)+' (se registran desde la app móvil)'; }
   updateInvWarningDesk();
 }
 
@@ -696,12 +761,12 @@ function updateInvWarningDesk(){
   var iw=el('inv-warning-desk'); if(!iw) return;
   var d=collectDesk();
   if(!d.fEvento){ iw.style.display='none'; return; }
-  var conflicts=checkInventory(d.items,d.fEvento,D_editId);
+  var conflicts=checkInventory(d.items,d.fEvento,D_editId,d.fFin); // MODIFIED: rango multi-día
   if(conflicts.length>0){
-    iw.innerHTML='&#9888;&#65039; Inventario excedido para '+fmtDate(d.fEvento)+': '+
+    iw.innerHTML='&#9888;&#65039; Inventario excedido para '+fmtRange(d)+': '+
       conflicts.map(function(x){
-        return '<strong>'+x.name+'</strong> ('+x.used+'/'+x.max+')';
-      }).join(', ')+' &mdash; Puedes guardar de todas formas.';
+        return '<strong>'+x.name+'</strong> ('+x.used+'/'+x.max+(d.dias>1&&x.day?' el '+fmtDate(x.day):'')+')';
+      }).join(', ')+' &mdash; Corrige las cantidades para poder guardar.'; // MODIFIED: ahora bloquea el guardado, igual que móvil
     iw.style.display='block';
   } else {
     iw.style.display='none';
@@ -724,8 +789,15 @@ function collectDesk(){
     hEntrega:el('c-hentrega').value, hEntregaL:selLbl('c-hentrega'),
     hRecol:el('c-hrecol').value, hRecolL:selLbl('c-hrecol'),
     traslado:parseFloat(el('c-traslado').value)||0,
-    anticipo:ant, total:total, resta:total-ant,
+    // MODIFIED: la resta descuenta los abonos registrados (también en las exportaciones)
+    anticipo:ant, total:total, resta:total-ant-sumAbonos(getById(D_editId)||{}),
+    abonos:((getById(D_editId)||{}).abonos||[]).slice(), // ADDED
     items:items,
+    // ADDED: renta multi-día + adicionales/Fairy (mismo formato que móvil)
+    fFin:(el('c-ffin').value && el('c-ffin').value>el('c-fevento').value)?el('c-ffin').value:'', dias:deskDias(),
+    extraItems: D_extraItems.filter(function(ex){ return ex.qty>0 || ex.desc; }).map(function(ex){
+      return {desc:ex.desc||'', qty:ex.qty||0, price:ex.price||0, amt:(ex.qty||0)*(ex.price||0), isFairy:!!ex.isFairy};
+    }),
     status:el('c-status').value||'abierto',
     ubicacion:(el('c-ubicacion').value||'').trim(),
     notas:(el('c-notas').value||'').trim()
@@ -736,7 +808,9 @@ function collectDesk(){
 function populateDesk(d){
   el('c-cdate').value  =d.cDate||todayISO(); el('c-nombre').value=d.nombre||'';
   el('c-tel').value    =d.tel||'';           el('c-dir').value   =d.dir||'';
-  el('c-fevento').value=d.fEvento||'';
+  el('c-fevento').value=d.fEvento||''; el('c-ffin').value=d.fFin||''; // MODIFIED: + fFin
+  D_extraItems=(d.extraItems||[]).map(function(ex){ return {desc:ex.desc||'',qty:ex.qty||0,price:ex.price||0,isFairy:!!ex.isFairy}; }); // ADDED
+  renderDeskExtras();
   el('c-hentrega').value=d.hEntrega||'';     el('c-hrecol').value=d.hRecol||'';
   el('c-traslado').value=d.traslado||0;
   el('c-status').value=d.status||'abierto';
@@ -761,7 +835,8 @@ function openEditor(id){
 function resetEditor(){
   D_editId=null;
   el('c-cdate').value=todayISO(); el('c-nombre').value=''; el('c-tel').value='';
-  el('c-dir').value=''; el('c-fevento').value='';
+  el('c-dir').value=''; el('c-fevento').value=''; el('c-ffin').value=''; // MODIFIED: reset fFin
+  D_extraItems=[]; renderDeskExtras(); // ADDED
   el('c-hentrega').value=''; el('c-hrecol').value='';
   el('c-traslado').value=0;
   el('c-status').value='abierto';
@@ -778,6 +853,10 @@ function resetEditor(){
 function saveFromEditor(){
   var d=collectDesk();
   if(!d.nombre.trim()){ showToast('⚠️ Ingresa el nombre del cliente'); return; }
+  // ADDED: igual que móvil, un exceso de inventario bloquea el guardado
+  if(d.fEvento && checkInventory(d.items,d.fEvento,D_editId,d.fFin).length>0){
+    showToast('⚠️ Inventario excedido — corrige las cantidades antes de guardar'); updateInvWarningDesk(); return;
+  }
   var now=new Date().toISOString();
   if(D_editId){
     var existing=getById(D_editId);
@@ -858,7 +937,7 @@ function cTableHTML(list){
       '<td>'+statusBadgeHTML(c)+'</td>'+
       '<td><strong>'+(c.nombre||'&mdash;')+'</strong></td>'+
       '<td>'+telCell+'</td>'+
-      '<td>'+fmtDate(c.fEvento)+'</td>'+
+      '<td>'+(rentalDays(c)>1?fmtDate(c.fEvento)+'<br><span style="font-size:11px;color:#2563a8;font-weight:700">→ '+fmtDate(rentalEnd(c))+' ('+rentalDays(c)+' d)</span>':fmtDate(c.fEvento))+'</td>'+ /* MODIFIED: multi-día */
       '<td>'+fmtDate(c.cDate)+'</td>'+
       '<td><span class="badge">'+ni+' art.</span></td>'+
       '<td>$'+(c.total||0).toLocaleString('es-MX',{minimumFractionDigits:2})+'</td>'+
