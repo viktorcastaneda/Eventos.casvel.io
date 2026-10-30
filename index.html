@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CASVEL – Contratos</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/x-icon" href="eventos_casvel_favicon.ico">
+<!-- iPhone / iPad -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<!-- ADDED: PWA de toda la app — permite instalarla para que abra sin
+     conexión (ver sw-app.js) -->
+<link rel="manifest" href="manifest-app.json">
+<meta name="theme-color" content="#1a1f2e">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -190,9 +197,23 @@ select.c-fi{flex:none;width:auto;min-width:130px;cursor:pointer;border:none;
 .fb-steps a{color:var(--blue)}
 .fb-steps code{background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:11px}
 
+
+/* ADDED: status badge */
+.status-badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700}
+/* ADDED: extra panel (no imprime) */
+.extra-panel{background:var(--white);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 18px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.ep-field{display:flex;flex-direction:column;gap:4px;min-width:180px}
+.ep-field label{font-size:11px;font-weight:700;color:var(--mid);text-transform:uppercase;letter-spacing:.05em}
+.ep-field input,.ep-field select{padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--r);
+  font-family:var(--ff);font-size:13px;outline:none;background:var(--white)}
+.ep-field input:focus,.ep-field select:focus{border-color:var(--blt)}
+.ep-field.ep-wide{flex:2;min-width:260px}
+.inv-warn-panel{padding:8px 12px;background:#fef9c3;border:1.5px solid #fbbf24;border-radius:8px;
+  font-size:12px;color:#92400e;width:100%;display:none}
 /* print */
 @media print{
-  .sb,.topbar,.ftbar,.overlay,.lov,#toast{display:none!important}
+  .sb,.topbar,.ftbar,.overlay,.lov,#toast,.no-print{display:none!important}
   .main{margin-left:0!important}
   .content{padding:0!important}
   .a4-wrap,.a4-page{width:100%!important}
@@ -224,10 +245,19 @@ if(!/[?&]d=1/.test(location.search) &&
       <span class="ic">📊</span> Dashboard</a>
     <a class="nav-item" id="nav-historial" href="#" onclick="showView('historial');return false">
       <span class="ic">📋</span> Historial</a>
+    <a class="nav-item" href="mobile.html?view=clientes">
+      <span class="ic">👥</span> Clientes</a>
     <a class="nav-item" id="nav-editor" href="#" onclick="openEditor(null);return false">
       <span class="ic">✏️</span> Nuevo Contrato</a>
-    <a class="nav-item" id="nav-reportes" href="reporte.html">
-      <span class="ic">💰</span> Reportes</a>
+  </div>
+  <div class="nav-sec">
+    <div class="nav-lbl">Reportes</div>
+    <a class="nav-item" href="mobile.html?view=reportes">
+      <span class="ic">📊</span> Reportes</a>
+    <a class="nav-item" href="entregas.html">
+      <span class="ic">🚚</span> Entregas</a>
+    <a class="nav-item" href="mobile.html?view=catalogo">
+      <span class="ic">🗂️</span> Catálogo / Inventario</a>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Configuración</div>
@@ -249,6 +279,15 @@ if(!/[?&]d=1/.test(location.search) &&
 
   <!-- DASHBOARD -->
   <div id="view-dashboard" class="view on content">
+    <!-- ADDED: banner de instalación de la app (PWA de toda la app) -->
+    <div id="install-banner" style="display:none;background:var(--bbg);border:1.5px solid var(--blue);border-radius:10px;padding:13px 16px;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="font-size:22px;flex-shrink:0">📲</div>
+      <div id="install-txt" style="flex:1;font-size:13px;color:var(--dark);line-height:1.4"><strong style="display:block;font-size:14px;margin-bottom:2px">Instala esta app</strong>Ábrela sin conexión, aunque cierres el navegador.</div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button id="install-go" onclick="doInstall()" style="display:none;border:none;border-radius:8px;padding:9px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff">Instalar</button>
+        <button onclick="dismissInstallBanner()" style="border:none;border-radius:8px;padding:9px 14px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;background:transparent;color:var(--mid)">Ahora no</button>
+      </div>
+    </div>
     <div class="stats-grid" id="db-stats"></div>
     <div class="sec-hdr">
       <div class="sec-title">Contratos Recientes</div>
@@ -264,7 +303,7 @@ if(!/[?&]d=1/.test(location.search) &&
       <button class="btn btn-p" onclick="openEditor(null)">+ Nuevo Contrato</button>
     </div>
     <div class="search-row">
-      <input class="search-inp" id="search-inp" placeholder="Buscar por nombre, teléfono, dirección…" oninput="renderHistorial()">
+      <input class="search-inp" id="search-inp" placeholder="Buscar por nombre, teléfono, dirección…" oninput="renderHistorialDebounced()">
     </div>
     <div id="h-table"></div>
   </div>
@@ -281,6 +320,26 @@ if(!/[?&]d=1/.test(location.search) &&
       <button class="btn btn-g btn-sm" onclick="doCalendar()">📅 Calendario</button>
     </div>
     <div class="content" style="padding-top:16px">
+      <!-- ADDED: Campos extra (no se imprimen) -->
+      <div class="extra-panel no-print">
+        <div class="ep-field">
+          <label>Status</label>
+          <select id="c-status">
+            <option value="abierto">&#9679; Abierto</option>
+            <option value="cerrado">&#9679; Cerrado</option>
+            <option value="cancelado">&#9679; Cancelado</option>
+          </select>
+        </div>
+        <div class="ep-field ep-wide">
+          <label>Ubicaci&#243;n del evento (Maps / Waze / GPS)</label>
+          <input type="text" id="c-ubicacion" placeholder="https://maps.google.com/... o coordenadas GPS">
+        </div>
+        <div class="ep-field ep-wide">
+          <label>Notas</label>
+          <input type="text" id="c-notas" placeholder="Observaciones del contrato...">
+        </div>
+        <div class="inv-warn-panel" id="inv-warning-desk"></div>
+      </div>
       <div class="a4-wrap">
         <div class="a4-page" id="a4page">
           <div class="c-hdr">
@@ -303,17 +362,6 @@ if(!/[?&]d=1/.test(location.search) &&
               <td><div class="c-fl"><label>Dirección del evento:</label><input type="text" class="c-fi" id="c-dir"></div></td>
               <td><div class="c-fl"><label>Fecha del Evento:</label>
                 <input type="date" class="c-fi" id="c-fevento" style="flex:none;width:auto"></div></td>
-            </tr><tr>
-              <td colspan="2"><div class="c-fl" style="align-items:center;gap:6px">
-                <label style="white-space:nowrap">📍 GPS / Maps:</label>
-                <input type="text" class="c-fi" id="c-gps"
-                  placeholder="19.4326,-99.1332  ó  link de Google Maps / Waze"
-                  style="flex:1;font-size:7.5pt" oninput="updateGpsBtn()">
-                <button type="button" id="c-gps-btn" onclick="openMapLink()"
-                  style="flex-shrink:0;padding:2px 8px;font-size:8pt;border:1px solid #b8cce4;
-                  border-radius:4px;background:#dce6f1;color:#2563a8;cursor:pointer;
-                  white-space:nowrap;display:none">🗺 Ver</button>
-              </div></td>
             </tr><tr>
               <td><div class="c-fl"><label>Horario de entrega:</label>
                 <select class="c-fi" id="c-hentrega"></select></div></td>
@@ -471,10 +519,45 @@ function openExportModal() { el('exp-modal').classList.add('open'); }
 function closeExportModal(){ el('exp-modal').classList.remove('open'); }
 function closeDelModal()    { el('del-modal').classList.remove('open'); }
 
+/* ═══════════════════════════════════════════════════════════════
+   ADDED: PWA de toda la app — usa los helpers genéricos de shared.js.
+   entregas.html tiene su propia copia independiente aparte, a propósito.
+═══════════════════════════════════════════════════════════════ */
+function updateInstallBanner(){
+  var b=el('install-banner'); if(!b) return;
+  if(pwaIsStandalone() || localStorage.getItem('casvel_install_dismiss')==='1'){
+    b.style.display='none';
+    return;
+  }
+  b.style.display='flex';
+  if(pwaIsIOS()){
+    el('install-txt').innerHTML='<strong style="display:block;font-size:14px;margin-bottom:2px">Instala esta app</strong>Toca compartir ⬆️ y luego "Agregar a pantalla de inicio".';
+    el('install-go').style.display='none';
+  } else {
+    el('install-txt').innerHTML='<strong style="display:block;font-size:14px;margin-bottom:2px">Instala esta app</strong>Ábrela sin conexión, aunque cierres el navegador.';
+    el('install-go').style.display=pwaCanPromptInstall()?'':'none';
+  }
+}
+function doInstall(){ pwaDoInstall(updateInstallBanner); }
+function dismissInstallBanner(){
+  localStorage.setItem('casvel_install_dismiss','1');
+  var b=el('install-banner'); if(b) b.style.display='none';
+}
+function onPwaInstallAvailable(){ updateInstallBanner(); }
+function onPwaInstalled(){ var b=el('install-banner'); if(b) b.style.display='none'; }
+
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', function(){
-  el('sb-logo').src = 'data:image/jpeg;base64,'+LOGO_B64;
-  el('c-logo').src  = 'data:image/jpeg;base64,'+LOGO_B64;
+  // MODIFIED (perf): LOGO_B64 se carga bajo demanda (ensureLogoLoaded en shared.js)
+  ensureLogoLoaded().then(function(b64){
+    var src='data:image/jpeg;base64,'+b64;
+    el('sb-logo').src = src;
+    el('c-logo').src  = src;
+  });
+
+  // ADDED: PWA de toda la app
+  pwaRegisterSW('sw-app.js', './');
+  updateInstallBanner();
 
   var opts = TIME_OPTIONS.map(function(t){
     return '<option value="'+t.value+'">'+t.label+'</option>';
@@ -485,18 +568,20 @@ document.addEventListener('DOMContentLoaded', function(){
   buildItemsTable();
   el('c-cdate').value = todayISO();
 
-  // Handle deep-link: ?view=historial
-  var urlView = (location.search.match(/[?&]view=([a-z]+)/)||[])[1];
-  if(urlView && ['historial','dashboard','editor'].includes(urlView)) showView(urlView);
-
   el('c-anticipo').addEventListener('input', function(){
     this.dataset.manual='1'; calcDesk();
   });
+  el('c-fevento').addEventListener('change', updateInvWarningDesk);
 
   // Suscribir a cambios en tiempo real (funciona con localStorage Y Firebase)
+  // MODIFIED (perf): antes cada cambio re-renderizaba Dashboard + Historial
+  // completos sin importar cuál estuviera visible. Ahora solo se re-renderiza
+  // la vista activa; showView() ya refresca la otra al navegar a ella.
   onContractsChange(function(){
-    renderDashboard();
-    renderHistorial();
+    var on=document.querySelector('.view.on');
+    var id=on?on.id:null;
+    if(id==='view-dashboard')      renderDashboard();
+    else if(id==='view-historial') renderHistorial();
   });
 
   // Intentar conectar Firebase si hay config guardada
@@ -601,7 +686,26 @@ function calcDesk(){
   el('c-total').textContent=f2(g);
   var ai=el('c-anticipo');
   if(!ai.dataset.manual) ai.value=(g*.25).toFixed(2);
-  el('c-resta').textContent='Resta por Pagar: '+f2(g-(parseFloat(ai.value)||0));
+  // MODIFIED: descuenta los abonos ya registrados (se administran desde la app móvil)
+  el('c-resta').textContent='Resta por Pagar: '+f2(g-(parseFloat(ai.value)||0)-sumAbonos(getById(D_editId)||{}));
+  updateInvWarningDesk();
+}
+
+/* ADDED: inventory warning for desktop editor */
+function updateInvWarningDesk(){
+  var iw=el('inv-warning-desk'); if(!iw) return;
+  var d=collectDesk();
+  if(!d.fEvento){ iw.style.display='none'; return; }
+  var conflicts=checkInventory(d.items,d.fEvento,D_editId);
+  if(conflicts.length>0){
+    iw.innerHTML='&#9888;&#65039; Inventario excedido para '+fmtDate(d.fEvento)+': '+
+      conflicts.map(function(x){
+        return '<strong>'+x.name+'</strong> ('+x.used+'/'+x.max+')';
+      }).join(', ')+' &mdash; Puedes guardar de todas formas.';
+    iw.style.display='block';
+  } else {
+    iw.style.display='none';
+  }
 }
 
 /* ── Collect ── */
@@ -616,12 +720,15 @@ function collectDesk(){
   function selLbl(id){ var e=el(id); return (e&&e.options[e.selectedIndex])?e.options[e.selectedIndex].text:''; }
   return {
     cDate:el('c-cdate').value, nombre:el('c-nombre').value, tel:el('c-tel').value,
-    dir:el('c-dir').value, gps:el('c-gps').value.trim(), fEvento:el('c-fevento').value,
+    dir:el('c-dir').value, fEvento:el('c-fevento').value,
     hEntrega:el('c-hentrega').value, hEntregaL:selLbl('c-hentrega'),
     hRecol:el('c-hrecol').value, hRecolL:selLbl('c-hrecol'),
     traslado:parseFloat(el('c-traslado').value)||0,
     anticipo:ant, total:total, resta:total-ant,
-    items:items
+    items:items,
+    status:el('c-status').value||'abierto',
+    ubicacion:(el('c-ubicacion').value||'').trim(),
+    notas:(el('c-notas').value||'').trim()
   };
 }
 
@@ -629,10 +736,12 @@ function collectDesk(){
 function populateDesk(d){
   el('c-cdate').value  =d.cDate||todayISO(); el('c-nombre').value=d.nombre||'';
   el('c-tel').value    =d.tel||'';           el('c-dir').value   =d.dir||'';
-  el('c-gps').value   =d.gps||'';           updateGpsBtn();
   el('c-fevento').value=d.fEvento||'';
   el('c-hentrega').value=d.hEntrega||'';     el('c-hrecol').value=d.hRecol||'';
   el('c-traslado').value=d.traslado||0;
+  el('c-status').value=d.status||'abierto';
+  el('c-ubicacion').value=d.ubicacion||'';
+  el('c-notas').value=d.notas||'';
   var ai=el('c-anticipo'); ai.value='0'; ai.removeAttribute('data-manual');
   if(d.items) d.items.forEach(function(r,i){
     el('dq'+i).value=(r.qty||0);
@@ -652,10 +761,13 @@ function openEditor(id){
 function resetEditor(){
   D_editId=null;
   el('c-cdate').value=todayISO(); el('c-nombre').value=''; el('c-tel').value='';
-  el('c-dir').value=''; el('c-gps').value=''; el('c-fevento').value='';
-  updateGpsBtn();
+  el('c-dir').value=''; el('c-fevento').value='';
   el('c-hentrega').value=''; el('c-hrecol').value='';
   el('c-traslado').value=0;
+  el('c-status').value='abierto';
+  el('c-ubicacion').value='';
+  el('c-notas').value='';
+  el('inv-warning-desk').style.display='none';
   var ai=el('c-anticipo'); ai.value='0'; ai.removeAttribute('data-manual');
   ITEMS.forEach(function(it,i){ el('dq'+i).value=0; el('dp'+i).value=it.price.toFixed(2); });
   el('edit-lbl').textContent='Nuevo Contrato';
@@ -669,7 +781,12 @@ function saveFromEditor(){
   var now=new Date().toISOString();
   if(D_editId){
     var existing=getById(D_editId);
-    var updated=Object.assign({}, existing||{}, d, {id:D_editId, updatedAt:now});
+    // ADDED: conservar abonos/liquidación al editar y recalcular resta
+    if(existing){
+      d.resta=d.total-d.anticipo-sumAbonos(existing);
+      d.liquidado=!!existing.liquidado && d.resta<=0.004;
+    }
+    var updated=Object.assign({}, existing||{}, d, {id:D_editId, updatedAt:now, lastChange:''});
     if(!updated.createdAt) updated.createdAt=now;
     saveContract(updated);
     showToast('✅ Contrato actualizado');
@@ -686,7 +803,7 @@ function saveFromEditor(){
 function renderDashboard(){
   var list=loadContracts();
   var total=list.reduce(function(s,c){return s+(c.total||0);},0);
-  var mo=new Date().toISOString().substring(0,7);
+  var mo=currentMonthISO(); // MODIFIED: mes actual en GMT-6
   var mc=list.filter(function(c){return(c.fEvento||c.createdAt||'').startsWith(mo);});
   var mt=mc.reduce(function(s,c){return s+(c.total||0);},0);
   function sc(l,v){ return '<div class="stat-card"><div class="stat-lbl">'+l+'</div><div class="stat-val">'+v+'</div></div>'; }
@@ -698,34 +815,62 @@ function renderDashboard(){
 }
 
 /* ── Historial ── */
-function renderHistorial(){
+// ADDED (perf): paginación del historial — antes se reconstruía la tabla
+// COMPLETA (todos los contratos, cientos y creciendo) en cada tecla del
+// buscador y en cada cambio de datos.
+var HIST_PAGE_SIZE = 40;
+var _histRenderedCount = HIST_PAGE_SIZE;
+function renderHistorial(resetPage){
+  if(resetPage) _histRenderedCount = HIST_PAGE_SIZE;
   var q=(el('search-inp').value||'').toLowerCase();
   var list=loadContracts().filter(function(c){
     if(!q) return true;
     return (c.nombre||'').toLowerCase().includes(q)||(c.tel||'').includes(q)||
            (c.dir||'').toLowerCase().includes(q)||fmtDate(c.fEvento).includes(q);
+  }).sort(function(a,b){ // ADDED: newest event first
+    return (b.fEvento||'').localeCompare(a.fEvento||'');
   });
-  el('h-table').innerHTML=list.length?cTableHTML(list):emptyHTML('Sin resultados',q?'Nada para: "'+q+'"':'Sin contratos');
+  var visible=list.slice(0,_histRenderedCount);
+  var remaining=list.length-visible.length;
+  var moreHTML=remaining>0
+    ? '<div style="text-align:center;padding:14px"><button class="btn btn-g" onclick="_histLoadMore()">Cargar más ('+remaining+' restantes)</button></div>'
+    : '';
+  el('h-table').innerHTML=list.length?cTableHTML(visible)+moreHTML:emptyHTML('Sin resultados',q?'Nada para: "'+q+'"':'Sin contratos');
 }
+function _histLoadMore(){
+  _histRenderedCount += HIST_PAGE_SIZE;
+  renderHistorial(false);
+}
+// ADDED (perf): el buscador reconstruía la tabla completa en cada tecla.
+var renderHistorialDebounced = debounce(function(){ renderHistorial(true); }, 200);
 
 function cTableHTML(list){
   var rows=list.map(function(c){
     var ni=(c.items||[]).filter(function(r){return r.qty>0;}).length;
+    var waNum=c.tel?(c.tel+'').replace(/\D/g,''):'';
+    var telCell=c.tel
+      ? '<a href="https://wa.me/'+waNum+'" target="_blank" style="color:var(--green);text-decoration:none;font-weight:600">&#128172; '+xe(c.tel)+'</a>'
+      : '&mdash;';
+    var locCell=c.ubicacion
+      ? '<a href="'+xe(c.ubicacion)+'" target="_blank" title="Abrir ubicaci&#243;n" style="font-size:16px;text-decoration:none">&#128205;</a>'
+      : '';
     return '<tr>'+
-      '<td><strong>'+(c.nombre||'—')+'</strong></td>'+
-      '<td>'+(c.tel||'—')+'</td>'+
+      '<td>'+statusBadgeHTML(c)+'</td>'+
+      '<td><strong>'+(c.nombre||'&mdash;')+'</strong></td>'+
+      '<td>'+telCell+'</td>'+
       '<td>'+fmtDate(c.fEvento)+'</td>'+
       '<td>'+fmtDate(c.cDate)+'</td>'+
       '<td><span class="badge">'+ni+' art.</span></td>'+
       '<td>$'+(c.total||0).toLocaleString('es-MX',{minimumFractionDigits:2})+'</td>'+
       '<td><div class="acts">'+
-        '<button class="btn btn-g btn-sm" onclick="openEditor(\''+c.id+'\')">✏️ Editar</button>'+
-        '<button class="btn btn-g btn-sm" onclick="qExport(\''+c.id+'\')">⬇️</button>'+
-        '<button class="btn btn-d btn-sm" onclick="askDel(\''+c.id+'\')">🗑</button>'+
+        (locCell?locCell+' ':'')+
+        '<button class="btn btn-g btn-sm" onclick="openEditor(\''+c.id+'\')">&#9999;&#65039; Editar</button>'+
+        '<button class="btn btn-g btn-sm" onclick="qExport(\''+c.id+'\')">&#11015;&#65039;</button>'+
+        '<button class="btn btn-d btn-sm" onclick="askDel(\''+c.id+'\')">&#128465;</button>'+
       '</div></td></tr>';
   }).join('');
   return '<div class="ctable"><table>'+
-    '<thead><tr><th>Cliente</th><th>Teléfono</th><th>Evento</th>'+
+    '<thead><tr><th>Status</th><th>Cliente</th><th>Tel&#233;fono</th><th>Evento</th>'+
     '<th>Contrato</th><th>Art.</th><th>Total</th><th></th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
 }
@@ -783,20 +928,6 @@ function doPDF(){
   savePDF(d,'CASVEL_'+(d.nombre||'contrato').replace(/\s+/g,'_')+'.pdf')
     .then(function(){ hideLoad(); showToast('\u2705 PDF descargado'); })
     .catch(function(e){ hideLoad(); showToast('\u274c Error: '+e.message); });
-}
-
-/* ── GPS map helpers ── */
-function updateGpsBtn(){
-  var v=el('c-gps').value.trim();
-  var parsed=typeof parseGPS==='function'?parseGPS(v):null;
-  var hasLink=parsed||(v.indexOf('http')===0);
-  el('c-gps-btn').style.display=hasLink?'':'none';
-}
-function openMapLink(){
-  var v=el('c-gps').value.trim();
-  var d=collectDesk();
-  var url=gpsMapUrl(v, d.dir||'');
-  if(url) window.open(url,'_blank');
 }
 </script>
 </body>

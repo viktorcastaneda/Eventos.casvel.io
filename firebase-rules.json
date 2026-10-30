@@ -1,0 +1,34 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "casvel_v1": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$id": {
+        ".validate": "newData.hasChildren(['id','nombre','fEvento']) && newData.child('total').isNumber()"
+      }
+    },
+
+    "casvel_catalog": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    "casvel_finanzas": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "movimientos": {
+        "$id": {
+          ".validate": "newData.hasChildren(['id','tipo','fecha','monto']) && (newData.child('tipo').val() === 'gasto' || newData.child('tipo').val() === 'ingreso') && newData.child('monto').isNumber() && newData.child('monto').val() > 0"
+        }
+      }
+    },
+
+    "casvel_entregas": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
